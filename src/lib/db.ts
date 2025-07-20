@@ -1,42 +1,40 @@
 // src/lib/db.ts
-import mongoose from 'mongoose';
+import mongoose, { Mongoose } from 'mongoose';
 
 const MONGO_URI = process.env.MONGO_URI as string;
 
 if (!MONGO_URI) {
-  console.error("❌ MONGO_URI is not defined");
-  throw new Error("MONGO_URI not defined in .env.local");
+  throw new Error("❌ MONGO_URI not defined in .env.local");
 }
 
-let cached = (global as any).mongoose;
-
-if (!cached) {
-  cached = (global as any).mongoose = { conn: null, promise: null };
+// ✅ Declare a global type-safe mongoose cache
+declare global {
+  var mongoose: {
+    conn: Mongoose | null;
+    promise: Promise<Mongoose> | null;
+  };
 }
 
-export async function connectDB() {
-  if (cached.conn) return cached.conn;
+// ✅ Ensure cache exists in global scope
+global.mongoose ||= { conn: null, promise: null };
 
-  if (!cached.promise) {
+export async function connectDB(): Promise<Mongoose> {
+  if (global.mongoose.conn) return global.mongoose.conn;
+
+  if (!global.mongoose.promise) {
     console.log("🔁 Connecting to MongoDB...");
-    cached.promise = mongoose.connect(MONGO_URI, {
+    global.mongoose.promise = mongoose.connect(MONGO_URI, {
       dbName: 'habitnest',
       bufferCommands: false,
-    }).then((mongoose) => {
-      console.log("✅ MongoDB connected!");
-      return mongoose;
-    }).catch((err) => {
-      console.error("❌ MongoDB connection error:", err.message);
-      throw err;
     });
   }
 
   try {
-    cached.conn = await cached.promise;
-    return cached.conn;
-  } catch (error) {
-    console.error("❌ DB connection failed in await:", error.message);
-    throw error;
+    global.mongoose.conn = await global.mongoose.promise;
+    console.log("✅ MongoDB connected!");
+    return global.mongoose.conn;
+  } catch (err: any) {
+    console.error("❌ MongoDB connection error:", err.message);
+    throw err;
   }
 }
-
